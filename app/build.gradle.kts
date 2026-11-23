@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "ru.pavellysov.carplaywelcome"
-        minSdk = 31
+        minSdk = 26
         targetSdk = 33
         versionCode = 1
         versionName = "0.1.0"
@@ -22,6 +22,7 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
 }
 
 dependencies {
