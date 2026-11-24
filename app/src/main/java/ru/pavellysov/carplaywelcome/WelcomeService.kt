@@ -31,6 +31,8 @@ const val KEY_CONFIGURED = "configured"
 const val KEY_DELAY_MINUTES = "delay_minutes"
 const val KEY_LOG = "log"
 const val KEY_BLUETOOTH_GREETING_PLAYED = "bluetooth_greeting_played"
+const val KEY_LAST_DIAGNOSTIC = "last_diagnostic"
+const val KEY_LAST_DIAGNOSTIC_AT = "last_diagnostic_at"
 
 private const val CHANNEL_ID = "monitoring"
 private const val NOTIFICATION_ID = 1
@@ -87,10 +89,13 @@ class WelcomeService : Service() {
         registerPhoneListener()
         when (intent?.action) {
             ACTION_TEST -> playWhenCallEnds(greetingFor(LocalTime.now()))
+            ACTION_DIAGNOSTIC -> intent.getStringExtra(EXTRA_DIAGNOSTIC)?.let { name ->
+                DiagnosticEvent.values().firstOrNull { it.name == name }?.let(::playDiagnostic)
+            }
             ACTION_BOOT -> startForConfiguredMode(fromBoot = true)
             else -> startForConfiguredMode(fromBoot = false)
         }
-        return if (intent?.action == ACTION_TEST) START_NOT_STICKY
+        return if (intent?.action == ACTION_TEST || intent?.action == ACTION_DIAGNOSTIC) START_NOT_STICKY
         else if (preferences(this).getBoolean(KEY_BLUETOOTH_MODE, true)) START_STICKY
         else START_NOT_STICKY
     }
@@ -198,6 +203,21 @@ class WelcomeService : Service() {
         }
     }
 
+    private fun playDiagnostic(event: DiagnosticEvent) {
+        val prefs = preferences(this)
+        val now = System.currentTimeMillis()
+        if (event.severity != Severity.CRITICAL &&
+            prefs.getString(KEY_LAST_DIAGNOSTIC, null) == event.name &&
+            now - prefs.getLong(KEY_LAST_DIAGNOSTIC_AT, 0) < DIAGNOSTIC_REPEAT_DELAY_MS
+        ) {
+            log("Повтор диагностического события пропущен: ${event.name}")
+            return
+        }
+        prefs.edit().putString(KEY_LAST_DIAGNOSTIC, event.name).putLong(KEY_LAST_DIAGNOSTIC_AT, now).apply()
+        log("Диагностическое событие: ${event.name}")
+        playWhenCallEnds(event.sound)
+    }
+
     private fun play(sound: Sound, fromBluetooth: Boolean) {
         val resource = resources.getIdentifier(sound.rawName, "raw", packageName)
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
@@ -241,9 +261,20 @@ class WelcomeService : Service() {
     companion object {
         const val ACTION_BOOT = "ru.pavellysov.carplaywelcome.BOOT"
         const val ACTION_TEST = "ru.pavellysov.carplaywelcome.TEST"
+        const val ACTION_DIAGNOSTIC = "ru.pavellysov.carplaywelcome.DIAGNOSTIC"
+        const val EXTRA_DIAGNOSTIC = "diagnostic"
+        private const val DIAGNOSTIC_REPEAT_DELAY_MS = 10 * 60_000L
 
         fun start(context: Context, action: String? = null) {
             val intent = Intent(context, WelcomeService::class.java).also { it.action = action }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
+        }
+
+        fun startDiagnostic(context: Context, event: DiagnosticEvent) {
+            val intent = Intent(context, WelcomeService::class.java)
+                .setAction(ACTION_DIAGNOSTIC)
+                .putExtra(EXTRA_DIAGNOSTIC, event.name)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
             else context.startService(intent)
         }

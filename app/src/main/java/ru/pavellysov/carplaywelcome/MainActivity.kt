@@ -85,11 +85,29 @@ class MainActivity : Activity() {
         root.addView(card(CYAN) {
             addView(label("АУДИО-СЦЕНАРИИ", 11, Color.rgb(44, 83, 86), true))
             addView(label("Утро • день • вечер • ночь", 18, BLACK, true), margin(top = 7))
-            addView(label("Повторное Bluetooth-подключение — «Данные актуальны»", 13, Color.rgb(30, 63, 67)), margin(top = 4))
+            addView(label("Приветствия, Bluetooth и 37 диагностических сообщений", 13, Color.rgb(30, 63, 67)), margin(top = 4))
         }, margin(bottom = 10))
 
         root.addView(action("▶  Проверить фразу для текущего времени", GREEN, Color.WHITE) {
             WelcomeService.start(this@MainActivity, WelcomeService.ACTION_TEST)
+        }, margin(bottom = 10))
+        root.addView(action("Проверить предупреждение о перегреве", DARK, Color.WHITE) {
+            WelcomeService.startDiagnostic(this@MainActivity, DiagnosticEvent.ENGINE_OVERHEAT)
+        }, margin(bottom = 10))
+        val diagnosticScenario = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                DiagnosticEvent.values().map { "[${it.severity}] ${it.sound.rawName}" }
+            )
+        }
+        root.addView(card(CYAN) {
+            addView(label("ТЕСТ ДИАГНОСТИКИ", 11, Color.rgb(44, 83, 86), true))
+            addView(label("Выберите и прослушайте любую локальную дорожку", 15, BLACK, true), margin(top = 7, bottom = 8))
+            addView(diagnosticScenario)
+            addView(action("▶  Прослушать выбранный сценарий", Color.TRANSPARENT, BLACK) {
+                WelcomeService.startDiagnostic(this@MainActivity, DiagnosticEvent.values()[diagnosticScenario.selectedItemPosition])
+            }, margin(top = 4))
         }, margin(bottom = 10))
         root.addView(action("Разрешить ожидание звонка и уведомления", DARK, Color.WHITE) {
             val permissions = mutableListOf(Manifest.permission.READ_PHONE_STATE)
